@@ -1,14 +1,14 @@
 {
     'name': 'Odoo 18 Assets Management',
     'version': '1.0.0',
-    'author': 'Odoo Mates, Odoo SA',
+    'author': 'Alan Technologies',
     'depends': ['account'],
     'description': """Manage assets owned by a company or a person. 
         Keeps track of depreciation's, and creates corresponding journal entries""",
     'summary': 'Odoo 18 Assets Management',
     'category': 'Accounting',
     'sequence': 10,
-    'website': 'https://www.odoomates.tech',
+    'website': 'https://alantechnologies.in/',
     'license': 'LGPL-3',
     'images': ['static/description/assets.gif'],
     'data': [

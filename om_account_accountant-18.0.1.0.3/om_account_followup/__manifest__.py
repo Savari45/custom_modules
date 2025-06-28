@@ -4,9 +4,9 @@
     'category': 'Accounting',
     'description': """Customer FollowUp Management""",
     'summary': """Customer FollowUp Management""",
-    'author': 'Odoo Mates, Odoo S.A',
+    'author': 'Alan Technologies',
     'license': 'LGPL-3',
-    'website': 'https://www.odoomates.tech',
+    'website': 'https://alantechnologies.in/',
     'depends': ['account', 'mail'],
     'data': [
         'security/security.xml',

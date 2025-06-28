@@ -14,8 +14,6 @@ class StockPicking(models.Model):
     )
 
     def button_validate(self):
-
-
         # Step 1: Confirm draft pickings
         draft_picking = self.filtered(lambda p: p.state == 'draft')
         draft_picking.action_confirm()
@@ -60,8 +58,6 @@ class StockPicking(models.Model):
             if not dest_company:
                 raise ValidationError(_("Please select a destination branch company for this inter-company transfer."))
 
-
-
             # Get or create internal picking type for destination company
             internal_type_branch = self.env['stock.picking.type'].sudo().search([
                 ('code', '=', 'internal'),
@@ -86,7 +82,6 @@ class StockPicking(models.Model):
                     'default_location_dest_id': branch_wh.lot_stock_id.id,
                 })
 
-
             # Get warehouse and locations
             branch_wh = self.env['stock.warehouse'].sudo().search([
                 ('company_id', '=', dest_company.id)
@@ -107,10 +102,8 @@ class StockPicking(models.Model):
                 'origin': _('Auto created from %s') % picking.name,
             })
 
-
-
             for move in picking.move_ids:
-                self.env['stock.move'].sudo().create({
+                new_move = self.env['stock.move'].sudo().create({
                     'picking_id': new_picking.id,
                     'product_id': move.product_id.id,
                     'product_uom_qty': move.product_uom_qty,
@@ -120,6 +113,13 @@ class StockPicking(models.Model):
                     'location_dest_id': dest_location,
                     'company_id': dest_company.id,
                 })
+
+                # 🚨 Update cost price in destination company
+                if not float_is_zero(move.product_uom_qty, precision_rounding=move.product_uom.rounding):
+                    source_cost = move.product_id.standard_price
+                    product_in_dest_company = move.product_id.with_company(dest_company)
+                    product_in_dest_company.standard_price = source_cost
+
             # Confirm and assign picking to set state to 'Ready'
             new_picking.action_confirm()
             new_picking.action_assign()

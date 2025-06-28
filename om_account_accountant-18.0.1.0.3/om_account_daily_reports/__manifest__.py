@@ -5,12 +5,12 @@
     'summary': 'Cash Book, Day Book and Bank Book Report For Odoo 18',
     'description': 'Cash Book, Day Book and Bank Book Report For Odoo 18',
     'sequence': '10',
-    'author': 'Odoo Mates',
+    'author': 'Alan Technologies',
     'license': 'LGPL-3',
-    'company': 'Odoo Mates',
-    'maintainer': 'Odoo Mates',
-    'support': 'odoomates@gmail.com',
-    'website': 'https://www.odoomates.tech',
+    'company': 'Alan Technologies',
+    'maintainer': 'Alan Technologies',
+    'support': 'support@alantechnologies.com',
+    'website': 'https://alantechnologies.in/',
     'depends': ['account', 'accounting_pdf_reports'],
     'data': [
         'security/ir.model.access.csv',
@@ -23,6 +23,6 @@
         'report/report_cashbook.xml',
         'report/report_bankbook.xml',
     ],
-    'live_test_url': 'https://www.youtube.com/watch?v=PEh-an8iCO0',
+
     'images': ['static/description/banner.gif'],
 }

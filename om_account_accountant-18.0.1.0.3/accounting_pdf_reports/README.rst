@@ -37,10 +37,10 @@ Credits
 Contributors
 ------------
 
-* Odoo Mates <odoomates@gmail.com>
+* Alan Technologies <support@alantechnologies.com>
 
 
 Author & Maintainer
 -------------------
 
-This module is maintained by the Odoo Mates
+This module is maintained by the Alan Technologies

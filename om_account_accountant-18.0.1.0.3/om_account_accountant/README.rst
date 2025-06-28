@@ -10,7 +10,7 @@ Daily Reports, Customer Follow Ups and Recurring Payments
 Common FAQ
 ==========
 1. How to skip in payment status and directly move to paid status ?
-a) https://www.youtube.com/watch?v=eWxfy86Byog
+a)
 
 Installation
 ============
@@ -44,11 +44,11 @@ Credits
 Contributors
 ------------
 
-* Odoo Mates <odoomates@gmail.com>
-* Walnut Software Solutions <info@walnutit.com>
+* Alan Technologies <support@alantechnologies.com>
+* Alan Technologies <support@alantechnologies.com>
 
 
 Author & Maintainer
 -------------------
 
-This module is maintained by the Odoo Mates
+This module is maintained by the Alan Technologies.

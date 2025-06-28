@@ -9,14 +9,14 @@
                    'Budget, Financial Reports, Recurring Payments, '
                    'Bank Statement Import, Customer Follow Up Management,'
                    'Account Lock Date, Accounting Dashboard',
-    'live_test_url': 'https://www.youtube.com/c/OdooMates',
+
     'sequence': '1',
     'sequence': '1',
-    'website': 'https://www.walnutit.com',
-    'author': 'Odoo Mates, Walnut Software Solutions, Odoo SA',
-    'maintainer': 'Odoo Mates, Walnut Software Solutions',
+    'website': 'https://alantechnologies.in/',
+    'author': 'Alan Technologies',
+    'maintainer': 'Alan TEchnologies',
     'license': 'LGPL-3',
-    'support': 'odoomates@gmail.com',
+    'support': 'support@alantechnologies.com',
     'depends': [
         'accounting_pdf_reports',
         'om_account_asset',
