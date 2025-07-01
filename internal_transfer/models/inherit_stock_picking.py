@@ -13,14 +13,26 @@ class StockPicking(models.Model):
         help="Select the destination branch company for automatic internal transfer creation."
     )
 
-    def button_validate(self):
-        # Step 1: Confirm draft pickings
-        draft_picking = self.filtered(lambda p: p.state == 'draft')
-        draft_picking.action_confirm()
+    total_transfer_cost = fields.Float(
+        string='Total Transfer Cost',
+        compute='_compute_total_transfer_cost',
+        store=True
+    )
 
-        for move in draft_picking.move_ids:
+    @api.depends('move_ids.transfer_cost')
+    def _compute_total_transfer_cost(self):
+        for picking in self:
+            picking.total_transfer_cost = sum(picking.move_ids.mapped('transfer_cost'))
+
+    def button_validate(self):
+        # Confirm and assign stock for draft pickings
+        draft_pickings = self.filtered(lambda p: p.state == 'draft')
+        draft_pickings.action_confirm()
+
+
+        for move in draft_pickings.move_ids:
             if float_is_zero(move.quantity, precision_rounding=move.product_uom.rounding) and \
-               not float_is_zero(move.product_uom_qty, precision_rounding=move.product_uom.rounding):
+                    not float_is_zero(move.product_uom_qty, precision_rounding=move.product_uom.rounding):
                 move.quantity = move.product_uom_qty
 
         if not self.env.context.get('skip_sanity_check', False):
@@ -35,22 +47,20 @@ class StockPicking(models.Model):
         if res is not True:
             return res
 
-        pickings_not_to_backorder = self.filtered(lambda p: p.picking_type_id.create_backorder == 'never')
+        # Handle backorders
+        no_backorder = self.filtered(lambda p: p.picking_type_id.create_backorder == 'never')
         if self.env.context.get('picking_ids_not_to_backorder'):
-            pickings_not_to_backorder |= self.browse(
-                self.env.context['picking_ids_not_to_backorder']
-            ).filtered(lambda p: p.picking_type_id.create_backorder != 'always')
+            no_backorder |= self.browse(self.env.context['picking_ids_not_to_backorder']).filtered(
+                lambda p: p.picking_type_id.create_backorder != 'always'
+            )
+        to_backorder = self - no_backorder
+        no_backorder.with_context(cancel_backorder=True)._action_done()
+        to_backorder.with_context(cancel_backorder=False)._action_done()
 
-        pickings_to_backorder = self - pickings_not_to_backorder
-        pickings_not_to_backorder.with_context(cancel_backorder=True)._action_done()
-        pickings_to_backorder.with_context(cancel_backorder=False)._action_done()
-
-        # Step 2: Auto-create inter-company picking if required
+        # Create inter-company internal transfers
         for picking in self:
             if picking.picking_type_id.code != 'internal':
                 continue
-
-            current_company = self.env.user.company_id
             if picking.location_dest_id.usage != 'transit' or 'inter' not in picking.location_dest_id.name.lower():
                 continue
 
@@ -58,21 +68,19 @@ class StockPicking(models.Model):
             if not dest_company:
                 raise ValidationError(_("Please select a destination branch company for this inter-company transfer."))
 
-            # Get or create internal picking type for destination company
-            internal_type_branch = self.env['stock.picking.type'].sudo().search([
+            branch_wh = self.env['stock.warehouse'].sudo().search([
+                ('company_id', '=', dest_company.id)
+            ], limit=1)
+            if not branch_wh:
+                raise ValidationError(_("No warehouse found for destination company %s.") % dest_company.name)
+
+            picking_type = self.env['stock.picking.type'].sudo().search([
                 ('code', '=', 'internal'),
                 ('company_id', '=', dest_company.id)
             ], limit=1)
 
-            if not internal_type_branch:
-                branch_wh = self.env['stock.warehouse'].sudo().search([
-                    ('company_id', '=', dest_company.id)
-                ], limit=1)
-
-                if not branch_wh:
-                    raise ValidationError(_("No warehouse found for company %s.") % dest_company.name)
-
-                internal_type_branch = self.env['stock.picking.type'].sudo().create({
+            if not picking_type:
+                picking_type = self.env['stock.picking.type'].sudo().create({
                     'name': 'Internal Transfer',
                     'code': 'internal',
                     'company_id': dest_company.id,
@@ -82,75 +90,63 @@ class StockPicking(models.Model):
                     'default_location_dest_id': branch_wh.lot_stock_id.id,
                 })
 
-            # Get warehouse and locations
-            branch_wh = self.env['stock.warehouse'].sudo().search([
-                ('company_id', '=', dest_company.id)
-            ], limit=1)
-
-            if not branch_wh:
-                raise ValidationError(_("No warehouse found for destination company %s.") % dest_company.name)
-
-            dest_location = branch_wh.lot_stock_id.id
-            source_location = picking.location_dest_id.id  # Virtual transit location
-
-            # Create picking
             new_picking = self.env['stock.picking'].sudo().create({
-                'picking_type_id': internal_type_branch.id,
-                'location_id': source_location,
-                'location_dest_id': dest_location,
+                'picking_type_id': picking_type.id,
+                'location_id': picking.location_dest_id.id,
+                'location_dest_id': branch_wh.lot_stock_id.id,
                 'company_id': dest_company.id,
                 'origin': _('Auto created from %s') % picking.name,
             })
 
             for move in picking.move_ids:
-                new_move = self.env['stock.move'].sudo().create({
+                self.env['stock.move'].sudo().create({
                     'picking_id': new_picking.id,
                     'product_id': move.product_id.id,
                     'product_uom_qty': move.product_uom_qty,
                     'product_uom': move.product_uom.id,
                     'name': move.name,
-                    'location_id': source_location,
-                    'location_dest_id': dest_location,
+                    'location_id': picking.location_dest_id.id,
+                    'location_dest_id': branch_wh.lot_stock_id.id,
                     'company_id': dest_company.id,
                 })
 
-                # 🚨 Update cost price in destination company
                 if not float_is_zero(move.product_uom_qty, precision_rounding=move.product_uom.rounding):
-                    source_cost = move.product_id.standard_price
-                    product_in_dest_company = move.product_id.with_company(dest_company)
-                    product_in_dest_company.standard_price = source_cost
+                    dest_product = move.product_id.with_company(dest_company)
+                    dest_product.standard_price = move.product_id.standard_price
 
-            # Confirm and assign picking to set state to 'Ready'
+            # Confirm & reserve inter-company picking (inside loop)
             new_picking.action_confirm()
             new_picking.action_assign()
+
             picking.message_post(body=_(
                 "✅ Inter-company draft transfer created in <b>%s</b>: %s"
             ) % (dest_company.name, new_picking.name))
 
-        # Step 3: Handle autoprint reports (Odoo default)
+        # Handle auto-printing reports
         report_actions = self._get_autoprint_report_actions()
         another_action = False
 
         if self.env.user.has_group('stock.group_reception_report'):
-            pickings_show_report = self.filtered(lambda p: p.picking_type_id.auto_show_reception_report)
-            lines = pickings_show_report.move_ids.filtered(
+            to_report = self.filtered(lambda p: p.picking_type_id.auto_show_reception_report)
+            lines = to_report.move_ids.filtered(
                 lambda m: m.product_id.is_storable and m.state != 'cancel' and m.quantity and not m.move_dest_ids
             )
             if lines:
-                wh_location_ids = self.env['stock.location']._search([
-                    ('id', 'child_of', pickings_show_report.picking_type_id.warehouse_id.view_location_id.ids),
+                view_locs = self.env['stock.location']._search([
+                    ('id', 'child_of', to_report.picking_type_id.warehouse_id.view_location_id.ids),
                     ('usage', '!=', 'supplier')
                 ])
-                if self.env['stock.move'].search_count([
+                move_exists = self.env['stock.move'].search_count([
                     ('state', 'in', ['confirmed', 'partially_available', 'waiting', 'assigned']),
                     ('product_qty', '>', 0),
-                    ('location_id', 'in', wh_location_ids),
+                    ('location_id', 'in', view_locs),
                     ('move_orig_ids', '=', False),
-                    ('picking_id', 'not in', pickings_show_report.ids),
+                    ('picking_id', 'not in', to_report.ids),
                     ('product_id', 'in', lines.product_id.ids)
-                ], limit=1):
-                    action = pickings_show_report.action_view_reception_report()
-                    action['context'] = {'default_picking_ids': pickings_show_report.ids}
+                ], limit=1)
+                if move_exists:
+                    action = to_report.action_view_reception_report()
+                    action['context'] = {'default_picking_ids': to_report.ids}
                     if not report_actions:
                         return action
                     another_action = action

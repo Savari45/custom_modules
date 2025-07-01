@@ -34,7 +34,11 @@
     'version': '18.0.1.0.0',
     'depends': ['base', 'sale', 'account', 'stock'],
     'data': [
+
+        'report/inherit_delivery_report.xml',
         'views/stock_picking_views.xml',
+        'views/inherit_search_view.xml',
+
 
     ],
     'images': ['static/description/banner.gif'],
